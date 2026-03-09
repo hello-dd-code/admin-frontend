@@ -21,6 +21,11 @@
       <el-table-column prop="id" label="ID" width="80" />
       <el-table-column prop="name" label="小程序名称" min-width="180" />
       <el-table-column prop="app_id" label="AppID" min-width="220" />
+      <el-table-column label="AppSecret" min-width="180">
+        <template #default="{ row }">
+          {{ maskSecret(row.app_secret) }}
+        </template>
+      </el-table-column>
       <el-table-column prop="description" label="描述" min-width="180" />
       <el-table-column prop="user_count" label="用户数" width="90" />
       <el-table-column label="创建时间" width="180">
@@ -76,6 +81,12 @@ const query = reactive({
 const formatDateTime = (value) => {
   if (!value) return '-'
   return dayjs(value).format('YYYY-MM-DD HH:mm:ss')
+}
+
+const maskSecret = (value) => {
+  if (!value) return '****'
+  if (value.length <= 8) return '****'
+  return `${value.slice(0, 4)}****${value.slice(-4)}`
 }
 
 const loadData = async () => {
