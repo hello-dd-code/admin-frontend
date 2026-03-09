@@ -52,6 +52,12 @@ const routes = [
         meta: { title: '用户详情', hidden: true }
       },
       {
+        path: 'marketing',
+        name: 'Marketing',
+        component: () => import('../views/marketing/index.vue'),
+        meta: { title: '营销图管理', icon: 'Picture' }
+      },
+      {
         path: 'memberships',
         name: 'Memberships',
         component: () => import('../views/memberships/index.vue'),
@@ -80,7 +86,7 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes
 })
 
