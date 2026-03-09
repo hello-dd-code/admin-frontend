@@ -62,6 +62,12 @@ const routes = [
         meta: { title: '保质期管理', icon: 'Box' }
       },
       {
+        path: 'watermark',
+        name: 'Watermark',
+        component: () => import('../views/watermark/index.vue'),
+        meta: { title: '去水印管理', icon: 'Brush' }
+      },
+      {
         path: 'settings',
         name: 'Settings',
         component: () => import('../views/settings/index.vue'),

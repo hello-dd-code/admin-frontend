@@ -1,7 +1,13 @@
 <template>
   <el-container class="layout-container">
+    <div
+      v-if="isMobile && mobileMenuVisible"
+      class="mobile-mask"
+      @click="closeMobileMenu"
+    ></div>
+
     <!-- 侧边栏 -->
-    <el-aside :width="isCollapse ? '64px' : '200px'" class="sidebar">
+    <el-aside :width="asideWidth" class="sidebar" :class="{ 'sidebar-mobile': isMobile }">
       <div class="logo">
         <span v-if="!isCollapse">管理后台</span>
         <span v-else>后台</span>
@@ -9,9 +15,10 @@
 
       <el-menu
         :default-active="activeMenu"
-        :collapse="isCollapse"
+        :collapse="menuCollapse"
         :unique-opened="true"
         router
+        @select="handleMenuSelect"
       >
         <el-menu-item
           v-for="route in menuRoutes"
@@ -61,7 +68,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { Fold, Expand, User, ArrowDown } from '@element-plus/icons-vue'
@@ -72,8 +79,27 @@ const route = useRoute()
 const userStore = useUserStore()
 
 const isCollapse = ref(false)
+const isMobile = ref(window.innerWidth < 768)
+const mobileMenuVisible = ref(false)
+
+const asideWidth = computed(() => {
+  if (isMobile.value) {
+    return mobileMenuVisible.value ? '200px' : '0px'
+  }
+  return isCollapse.value ? '64px' : '200px'
+})
+
+const menuCollapse = computed(() => {
+  if (isMobile.value) {
+    return false
+  }
+  return isCollapse.value
+})
 
 onMounted(async () => {
+  window.addEventListener('resize', handleResize)
+  handleResize()
+
   if (userStore.token && !userStore.userInfo) {
     try {
       await userStore.fetchUserInfo()
@@ -82,6 +108,19 @@ onMounted(async () => {
     }
   }
 })
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize)
+})
+
+watch(
+  () => route.path,
+  () => {
+    if (isMobile.value) {
+      closeMobileMenu()
+    }
+  }
+)
 
 // 获取菜单路由（过滤掉隐藏的路由）
 const menuRoutes = computed(() => {
@@ -104,7 +143,28 @@ const activeMenu = computed(() => {
 
 // 切换侧边栏折叠状态
 const toggleCollapse = () => {
+  if (isMobile.value) {
+    mobileMenuVisible.value = !mobileMenuVisible.value
+    return
+  }
   isCollapse.value = !isCollapse.value
+}
+
+const closeMobileMenu = () => {
+  mobileMenuVisible.value = false
+}
+
+const handleMenuSelect = () => {
+  if (isMobile.value) {
+    closeMobileMenu()
+  }
+}
+
+const handleResize = () => {
+  isMobile.value = window.innerWidth < 768
+  if (!isMobile.value) {
+    mobileMenuVisible.value = false
+  }
 }
 
 // 处理下拉菜单命令
@@ -133,11 +193,14 @@ const handleCommand = async (command) => {
 .layout-container {
   width: 100%;
   height: 100vh;
+  position: relative;
 }
 
 .sidebar {
   background: #304156;
   transition: width 0.3s;
+  overflow: hidden;
+  z-index: 1001;
 }
 
 .logo {
@@ -217,5 +280,29 @@ const handleCommand = async (command) => {
   background: #f0f2f5;
   padding: 20px;
   overflow-y: auto;
+}
+
+.mobile-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+}
+
+@media (max-width: 767px) {
+  .sidebar-mobile {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+  }
+
+  .header {
+    padding: 0 12px;
+  }
+
+  .main-content {
+    padding: 12px;
+  }
 }
 </style>
