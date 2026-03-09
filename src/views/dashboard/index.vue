@@ -1,6 +1,15 @@
 <template>
   <div class="dashboard-page">
-    <el-row :gutter="16" class="cards">
+    <el-alert
+      v-if="errorMessage"
+      :title="errorMessage"
+      type="error"
+      show-icon
+      closable
+      @close="errorMessage = ''"
+    />
+
+    <el-row v-loading="overviewLoading" :gutter="16" class="cards">
       <el-col :xs="12" :sm="12" :md="6">
         <el-card shadow="hover">
           <div class="card-value">{{ overview.total_mini_programs }}</div>
@@ -51,16 +60,16 @@
           </el-radio-group>
         </div>
       </template>
-      <el-table v-loading="growthLoading" :data="userGrowth" stripe>
-        <el-table-column prop="date" label="日期" width="160" />
-        <el-table-column prop="count" label="新增用户数" />
-      </el-table>
+      <div v-loading="growthLoading" class="chart-wrap">
+        <div ref="growthChartRef" class="growth-chart"></div>
+      </div>
     </el-card>
   </div>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import * as echarts from 'echarts'
+import { onBeforeUnmount, onMounted, reactive, ref, nextTick } from 'vue'
 import { getMiniProgramStats, getOverviewStats, getUserGrowth } from '../../api/stats'
 
 const overview = reactive({
@@ -73,13 +82,25 @@ const overview = reactive({
 const miniProgramStats = ref([])
 const userGrowth = ref([])
 const growthDays = ref(7)
+const errorMessage = ref('')
 
+const overviewLoading = ref(false)
 const tableLoading = ref(false)
 const growthLoading = ref(false)
+const growthChartRef = ref(null)
+let growthChart = null
+let refreshTimer = null
 
 const loadOverview = async () => {
-  const res = await getOverviewStats()
-  Object.assign(overview, res.data || {})
+  overviewLoading.value = true
+  try {
+    const res = await getOverviewStats()
+    Object.assign(overview, res.data || {})
+  } catch (error) {
+    errorMessage.value = '加载总览数据失败，请稍后重试'
+  } finally {
+    overviewLoading.value = false
+  }
 }
 
 const loadMiniProgramStats = async () => {
@@ -87,9 +108,54 @@ const loadMiniProgramStats = async () => {
   try {
     const res = await getMiniProgramStats()
     miniProgramStats.value = res.data || []
+  } catch (error) {
+    errorMessage.value = '加载小程序统计失败，请稍后重试'
   } finally {
     tableLoading.value = false
   }
+}
+
+const renderGrowthChart = async () => {
+  await nextTick()
+  if (!growthChartRef.value) return
+
+  if (!growthChart) {
+    growthChart = echarts.init(growthChartRef.value)
+  }
+
+  const labels = userGrowth.value.map((item) => item.date)
+  const values = userGrowth.value.map((item) => item.count || 0)
+
+  growthChart.setOption({
+    tooltip: {
+      trigger: 'axis'
+    },
+    xAxis: {
+      type: 'category',
+      data: labels
+    },
+    yAxis: {
+      type: 'value'
+    },
+    grid: {
+      left: 24,
+      right: 24,
+      top: 30,
+      bottom: 24,
+      containLabel: true
+    },
+    series: [
+      {
+        name: '新增用户数',
+        type: 'line',
+        smooth: true,
+        data: values,
+        areaStyle: {
+          opacity: 0.12
+        }
+      }
+    ]
+  })
 }
 
 const loadGrowth = async () => {
@@ -97,17 +163,41 @@ const loadGrowth = async () => {
   try {
     const res = await getUserGrowth(growthDays.value)
     userGrowth.value = res.data || []
+    await renderGrowthChart()
+  } catch (error) {
+    errorMessage.value = '加载用户增长趋势失败，请稍后重试'
   } finally {
     growthLoading.value = false
   }
 }
 
 const loadAll = async () => {
+  errorMessage.value = ''
   await Promise.all([loadOverview(), loadMiniProgramStats(), loadGrowth()])
+}
+
+const handleResize = () => {
+  if (growthChart) {
+    growthChart.resize()
+  }
 }
 
 onMounted(() => {
   loadAll()
+  refreshTimer = window.setInterval(loadAll, 5 * 60 * 1000)
+  window.addEventListener('resize', handleResize)
+})
+
+onBeforeUnmount(() => {
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+    refreshTimer = null
+  }
+  window.removeEventListener('resize', handleResize)
+  if (growthChart) {
+    growthChart.dispose()
+    growthChart = null
+  }
 })
 </script>
 
@@ -143,5 +233,15 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.chart-wrap {
+  width: 100%;
+  min-height: 320px;
+}
+
+.growth-chart {
+  width: 100%;
+  min-height: 320px;
 }
 </style>
