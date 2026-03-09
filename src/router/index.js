@@ -1,4 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useUserStore } from '../stores/user'
+import { pinia } from '../stores'
 
 const routes = [
   {
@@ -83,15 +85,35 @@ const router = createRouter({
 })
 
 // 路由守卫
-router.beforeEach((to, from, next) => {
-  const token = localStorage.getItem('admin_token')
+router.beforeEach(async (to, from, next) => {
+  const userStore = useUserStore(pinia)
+  const token = userStore.token
 
-  if (to.meta.requiresAuth && !token) {
-    next('/login')
-  } else if (to.path === '/login' && token) {
-    next('/')
-  } else {
+  if (!to.meta.requiresAuth) {
+    if (to.path === '/login' && token) {
+      try {
+        await userStore.ensureProfileLoaded()
+        next('/')
+      } catch (error) {
+        next()
+      }
+      return
+    }
     next()
+    return
+  }
+
+  if (!token) {
+    next(`/login?redirect=${encodeURIComponent(to.fullPath)}`)
+    return
+  }
+
+  try {
+    await userStore.ensureProfileLoaded()
+    next()
+  } catch (error) {
+    userStore.logout()
+    next('/login')
   }
 })
 

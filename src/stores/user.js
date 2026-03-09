@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { login as loginApi, getProfile } from '../api/auth'
+import { getProfile, login as loginApi, logout as logoutApi } from '../api/auth'
 
 export const useUserStore = defineStore('user', {
   state: () => ({
@@ -35,7 +35,21 @@ export const useUserStore = defineStore('user', {
       }
     },
 
+    async ensureProfileLoaded() {
+      if (!this.token) {
+        throw new Error('未登录')
+      }
+      if (this.userInfo) {
+        return this.userInfo
+      }
+      const res = await this.fetchUserInfo()
+      return res.data
+    },
+
     logout() {
+      if (this.token) {
+        logoutApi().catch(() => {})
+      }
       this.token = ''
       this.userInfo = null
       localStorage.removeItem('admin_token')
