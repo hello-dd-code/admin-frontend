@@ -67,11 +67,29 @@
             <el-button type="primary" @click="handleSearch">搜索</el-button>
             <el-button @click="resetSearch">重置</el-button>
           </div>
-          <el-button type="primary" @click="openCreateDialog">生成兑换码</el-button>
+          <div class="right-actions">
+            <el-button
+              :disabled="selectedActiveCount === 0"
+              :loading="batchDisabling"
+              type="warning"
+              @click="handleBatchDisable"
+            >
+              批量停用{{ selectedActiveCount > 0 ? `(${selectedActiveCount})` : '' }}
+            </el-button>
+            <el-button type="primary" @click="openCreateDialog">生成兑换码</el-button>
+          </div>
         </div>
       </template>
 
-      <el-table v-loading="loading" :data="list" stripe>
+      <el-table
+        ref="tableRef"
+        v-loading="loading"
+        :data="list"
+        row-key="id"
+        stripe
+        @selection-change="handleSelectionChange"
+      >
+        <el-table-column type="selection" width="48" reserve-selection />
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="code" label="兑换码" min-width="180" />
         <el-table-column label="小程序" min-width="140">
@@ -111,8 +129,10 @@
             {{ formatDateTime(row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
+            <el-button link type="primary" @click="openDetailDialog(row)">详情</el-button>
+            <el-button link @click="handleCopyCode(row)">复制</el-button>
             <el-button
               v-if="row.status === 'active'"
               link
@@ -181,13 +201,40 @@
         <el-button type="primary" :loading="creating" @click="handleCreate">生成</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="detailDialogVisible" title="兑换码详情" width="560px">
+      <el-descriptions v-if="detailRecord" :column="1" border>
+        <el-descriptions-item label="ID">{{ detailRecord.id || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="兑换码">{{ detailRecord.code || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="状态">{{ statusText(detailRecord.status) }}</el-descriptions-item>
+        <el-descriptions-item label="所属小程序">
+          {{ detailRecord.mini_program_name || detailRecord.mini_program?.name || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="套餐类型">
+          {{ detailRecord.package_type || detailRecord.plan_name || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="时长(天)">{{ detailRecord.duration_days || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="可用次数">
+          {{ detailRecord.max_uses || 1 }}
+        </el-descriptions-item>
+        <el-descriptions-item label="已使用次数">
+          {{ detailRecord.used_count || 0 }}
+        </el-descriptions-item>
+        <el-descriptions-item label="过期时间">
+          {{ formatDateTime(detailRecord.expires_at) }}
+        </el-descriptions-item>
+        <el-descriptions-item label="创建时间">
+          {{ formatDateTime(detailRecord.created_at) }}
+        </el-descriptions-item>
+      </el-descriptions>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import dayjs from 'dayjs'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { getMiniPrograms } from '../../api/miniProgram'
 import {
   createMembershipRedeemCodes,
@@ -201,8 +248,13 @@ const creating = ref(false)
 const list = ref([])
 const total = ref(0)
 const miniProgramOptions = ref([])
+const tableRef = ref(null)
+const selectedRows = ref([])
+const batchDisabling = ref(false)
 const createDialogVisible = ref(false)
 const createFormRef = ref(null)
+const detailDialogVisible = ref(false)
+const detailRecord = ref(null)
 
 const overview = reactive({
   total_members: 0,
@@ -235,6 +287,9 @@ const createRules = {
   quantity: [{ required: true, message: '请输入生成数量', trigger: 'blur' }],
   max_uses: [{ required: true, message: '请输入可用次数', trigger: 'blur' }]
 }
+
+const selectedActiveRows = computed(() => selectedRows.value.filter((item) => item.status === 'active'))
+const selectedActiveCount = computed(() => selectedActiveRows.value.length)
 
 const formatDateTime = (value) => {
   if (!value) return '-'
@@ -276,6 +331,7 @@ const loadData = async () => {
     const res = await getMembershipRedeemCodes(query)
     const payload = res.data || {}
     list.value = payload.list || payload.items || []
+    selectedRows.value = []
     total.value = payload.total || 0
     query.page = payload.page || query.page
     query.page_size = payload.page_size || query.page_size
@@ -301,8 +357,40 @@ const handleSizeChange = () => {
   loadData()
 }
 
+const handleSelectionChange = (rows) => {
+  selectedRows.value = rows || []
+}
+
 const openCreateDialog = () => {
   createDialogVisible.value = true
+}
+
+const openDetailDialog = (row) => {
+  detailRecord.value = row
+  detailDialogVisible.value = true
+}
+
+const handleCopyCode = async (row) => {
+  if (!row?.code) {
+    ElMessage.warning('兑换码为空，无法复制')
+    return
+  }
+
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(row.code)
+    } else {
+      const input = document.createElement('input')
+      input.value = row.code
+      document.body.appendChild(input)
+      input.select()
+      document.execCommand('copy')
+      document.body.removeChild(input)
+    }
+    ElMessage.success('兑换码已复制')
+  } catch (error) {
+    ElMessage.error('复制失败，请手动复制')
+  }
 }
 
 const handleCreate = async () => {
@@ -341,6 +429,43 @@ const handleDisable = async (row) => {
   loadData()
 }
 
+const handleBatchDisable = async () => {
+  if (selectedActiveRows.value.length === 0) {
+    ElMessage.warning('请先选择可用状态的兑换码')
+    return
+  }
+
+  const activeCount = selectedActiveRows.value.length
+  await ElMessageBox.confirm(`确认批量停用 ${activeCount} 条兑换码吗？`, '批量停用', {
+    type: 'warning',
+    confirmButtonText: '确定',
+    cancelButtonText: '取消'
+  })
+
+  batchDisabling.value = true
+  try {
+    const results = await Promise.allSettled(
+      selectedActiveRows.value.map((item) =>
+        updateMembershipRedeemCodeStatus(item.id, { status: 'disabled' })
+      )
+    )
+
+    const successCount = results.filter((item) => item.status === 'fulfilled').length
+    const failCount = activeCount - successCount
+
+    if (successCount > 0) {
+      ElMessage.success(`批量停用完成：成功 ${successCount} 条${failCount > 0 ? `，失败 ${failCount} 条` : ''}`)
+    } else {
+      ElMessage.error('批量停用失败，请稍后重试')
+    }
+
+    tableRef.value?.clearSelection()
+    await loadData()
+  } finally {
+    batchDisabling.value = false
+  }
+}
+
 onMounted(async () => {
   await Promise.all([loadMiniPrograms(), loadOverview(), loadData()])
 })
@@ -368,6 +493,12 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
+}
+
+.right-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .filters {

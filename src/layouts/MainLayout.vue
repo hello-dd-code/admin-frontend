@@ -184,7 +184,10 @@ const handleCommand = async (command) => {
       // 用户取消
     }
   } else if (command === 'profile') {
-    ElMessage.info('个人信息功能开发中...')
+    router.push({
+      path: '/settings',
+      query: { tab: 'profile' }
+    })
   }
 }
 </script>

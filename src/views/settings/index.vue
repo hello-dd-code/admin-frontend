@@ -89,8 +89,10 @@
 </template>
 
 <script setup>
-import { ElMessage } from 'element-plus'
-import { onMounted, reactive, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useUserStore } from '../../stores/user'
 import {
   getAdminSettings,
   getSystemConfig,
@@ -98,6 +100,16 @@ import {
   updateAdminProfile,
   updateSystemConfig
 } from '../../api/settings'
+
+const route = useRoute()
+const router = useRouter()
+const userStore = useUserStore()
+
+const validTabs = ['profile', 'security', 'system']
+const normalizeTab = (tab) => {
+  if (typeof tab !== 'string') return 'profile'
+  return validTabs.includes(tab) ? tab : 'profile'
+}
 
 const activeTab = ref('profile')
 const profileFormRef = ref(null)
@@ -150,7 +162,21 @@ const passwordRules = {
   old_password: [{ required: true, message: '请输入当前密码', trigger: 'blur' }],
   new_password: [
     { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 6, message: '新密码至少 6 位', trigger: 'blur' }
+    { min: 6, message: '新密码至少 6 位', trigger: 'blur' },
+    {
+      validator: (_, value, callback) => {
+        if (!value) {
+          callback()
+          return
+        }
+        if (value === passwordForm.old_password) {
+          callback(new Error('新密码不能与当前密码相同'))
+          return
+        }
+        callback()
+      },
+      trigger: 'blur'
+    }
   ],
   confirm_password: [{ validator: confirmPasswordValidator, trigger: 'blur' }]
 }
@@ -212,10 +238,18 @@ const handleChangePassword = async () => {
       old_password: passwordForm.old_password,
       new_password: passwordForm.new_password
     })
+
     passwordForm.old_password = ''
     passwordForm.new_password = ''
     passwordForm.confirm_password = ''
-    ElMessage.success('密码更新成功，请使用新密码重新登录')
+
+    await ElMessageBox.alert('密码更新成功，请使用新密码重新登录。', '提示', {
+      confirmButtonText: '确定',
+      type: 'success'
+    })
+
+    userStore.logout()
+    router.push('/login')
   } finally {
     passwordSaving.value = false
   }
@@ -231,7 +265,30 @@ const handleSaveSystem = async () => {
   }
 }
 
+watch(
+  () => route.query.tab,
+  (tab) => {
+    const normalizedTab = normalizeTab(tab)
+    if (activeTab.value !== normalizedTab) {
+      activeTab.value = normalizedTab
+    }
+  },
+  { immediate: true }
+)
+
+watch(activeTab, (tab) => {
+  if (route.query.tab === tab) return
+  router.replace({
+    path: route.path,
+    query: {
+      ...route.query,
+      tab
+    }
+  }).catch(() => {})
+})
+
 onMounted(async () => {
+  activeTab.value = normalizeTab(route.query.tab)
   await Promise.all([loadProfile(), loadSystemConfig()])
 })
 </script>
