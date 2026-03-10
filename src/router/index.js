@@ -72,8 +72,29 @@ const routes = [
       {
         path: 'watermark',
         name: 'Watermark',
-        component: () => import('../views/watermark/index.vue'),
-        meta: { title: '去水印管理', icon: 'Brush' }
+        component: () => import('../views/watermark/layout.vue'),
+        redirect: '/watermark/video-parse-logs',
+        meta: { title: '去水印小程序', icon: 'Brush' },
+        children: [
+          {
+            path: 'video-parse-logs',
+            name: 'VideoParseLogs',
+            component: () => import('../views/watermark/video-parse-logs.vue'),
+            meta: { title: '解析日志' }
+          },
+          {
+            path: 'video-parse-unlocks',
+            name: 'VideoParseUnlocks',
+            component: () => import('../views/watermark/video-parse-unlocks.vue'),
+            meta: { title: '广告解锁' }
+          },
+          {
+            path: 'video-download-failures',
+            name: 'VideoDownloadFailures',
+            component: () => import('../views/watermark/video-download-failures.vue'),
+            meta: { title: '下载失败上报' }
+          }
+        ]
       },
       {
         path: 'settings',

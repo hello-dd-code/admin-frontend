@@ -6,7 +6,6 @@
       @click="closeMobileMenu"
     ></div>
 
-    <!-- 侧边栏 -->
     <el-aside :width="asideWidth" class="sidebar" :class="{ 'sidebar-mobile': isMobile }">
       <div class="logo">
         <span v-if="!isCollapse">管理后台</span>
@@ -20,20 +19,36 @@
         router
         @select="handleMenuSelect"
       >
-        <el-menu-item
-          v-for="route in menuRoutes"
-          :key="route.path"
-          :index="route.path"
-        >
-          <el-icon><component :is="route.meta.icon" /></el-icon>
-          <template #title>{{ route.meta.title }}</template>
-        </el-menu-item>
+        <template v-for="routeItem in menuRoutes" :key="routeKey(routeItem)">
+          <el-sub-menu
+            v-if="hasChildren(routeItem)"
+            :index="resolvePath(routeItem.path)"
+          >
+            <template #title>
+              <el-icon><component :is="routeItem.meta.icon" /></el-icon>
+              <span>{{ routeItem.meta.title }}</span>
+            </template>
+            <el-menu-item
+              v-for="child in visibleChildren(routeItem)"
+              :key="routeKey(child)"
+              :index="resolvePath(routeItem.path, child.path)"
+            >
+              {{ child.meta?.title || child.name }}
+            </el-menu-item>
+          </el-sub-menu>
+
+          <el-menu-item
+            v-else
+            :index="resolvePath(routeItem.path)"
+          >
+            <el-icon><component :is="routeItem.meta.icon" /></el-icon>
+            <template #title>{{ routeItem.meta.title }}</template>
+          </el-menu-item>
+        </template>
       </el-menu>
     </el-aside>
 
-    <!-- 主内容区 -->
     <el-container>
-      <!-- 顶部导航栏 -->
       <el-header class="header">
         <div class="header-left">
           <el-icon class="collapse-icon" @click="toggleCollapse">
@@ -59,7 +74,6 @@
         </div>
       </el-header>
 
-      <!-- 主内容 -->
       <el-main class="main-content">
         <router-view />
       </el-main>
@@ -122,26 +136,51 @@ watch(
   }
 )
 
-// 获取菜单路由（过滤掉隐藏的路由）
 const menuRoutes = computed(() => {
-  const routes = router.getRoutes()
-  const mainRoute = routes.find(r => r.path === '/')
-  if (!mainRoute || !mainRoute.children) return []
-
-  return mainRoute.children.filter(r => !r.meta?.hidden)
+  const rootRoute = router.options.routes.find((item) => item.path === '/')
+  if (!rootRoute || !rootRoute.children) return []
+  return rootRoute.children.filter((item) => !item.meta?.hidden)
 })
 
-// 当前激活的菜单
+const visibleChildren = (routeItem) => {
+  return (routeItem.children || []).filter((child) => !child.meta?.hidden)
+}
+
+const hasChildren = (routeItem) => {
+  return visibleChildren(routeItem).length > 0
+}
+
+const routeKey = (routeItem) => {
+  return `${routeItem.path || ''}-${routeItem.name || ''}`
+}
+
+const resolvePath = (parentPath = '', childPath = '') => {
+  const normalize = (value) => {
+    if (!value) return '/'
+    return value.startsWith('/') ? value : `/${value}`
+  }
+
+  const parent = normalize(parentPath)
+  if (!childPath) {
+    return parent
+  }
+  if (childPath.startsWith('/')) {
+    return childPath
+  }
+  return `${parent.replace(/\/$/, '')}/${childPath}`.replace(/\/{2,}/g, '/')
+}
+
 const activeMenu = computed(() => {
   const { path } = route
-  // 如果是子路由，返回父路由路径
+  if (path === '/watermark') {
+    return '/watermark/video-parse-logs'
+  }
   if (path.includes('/create') || path.includes('/edit') || /\/\d+$/.test(path)) {
     return '/' + path.split('/')[1]
   }
   return path
 })
 
-// 切换侧边栏折叠状态
 const toggleCollapse = () => {
   if (isMobile.value) {
     mobileMenuVisible.value = !mobileMenuVisible.value
@@ -167,7 +206,6 @@ const handleResize = () => {
   }
 }
 
-// 处理下拉菜单命令
 const handleCommand = async (command) => {
   if (command === 'logout') {
     try {
@@ -222,11 +260,13 @@ const handleCommand = async (command) => {
   background: #304156;
 }
 
-:deep(.el-menu-item) {
+:deep(.el-menu-item),
+:deep(.el-sub-menu__title) {
   color: #bfcbd9;
 }
 
-:deep(.el-menu-item:hover) {
+:deep(.el-menu-item:hover),
+:deep(.el-sub-menu__title:hover) {
   background: #263445 !important;
   color: #fff;
 }

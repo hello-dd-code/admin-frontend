@@ -28,3 +28,27 @@ export function deleteWatermarkTask(id) {
     method: 'delete'
   })
 }
+
+export function getVideoParseLogs(params) {
+  return request({
+    url: '/api/admin/watermark/video-parse-logs',
+    method: 'get',
+    params
+  })
+}
+
+export function getVideoParseUnlocks(params) {
+  return request({
+    url: '/api/admin/watermark/video-parse-unlocks',
+    method: 'get',
+    params
+  })
+}
+
+export function getVideoDownloadFailures(params) {
+  return request({
+    url: '/api/admin/watermark/video-download-failures',
+    method: 'get',
+    params
+  })
+}
