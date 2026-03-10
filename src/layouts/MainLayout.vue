@@ -255,9 +255,13 @@ const handleCommand = async (command) => {
   background: #2b3a4b;
 }
 
-.el-menu {
+:deep(.el-menu) {
   border-right: none;
-  background: #304156;
+  background: transparent;
+  --el-menu-bg-color: #304156;
+  --el-menu-text-color: #bfcbd9;
+  --el-menu-hover-bg-color: #263445;
+  --el-menu-active-color: #ffffff;
 }
 
 :deep(.el-menu-item),
@@ -273,6 +277,45 @@ const handleCommand = async (command) => {
 
 :deep(.el-menu-item.is-active) {
   background: #409eff !important;
+  color: #fff;
+}
+
+:deep(.el-menu--inline) {
+  background: linear-gradient(180deg, #27374a 0%, #243244 100%) !important;
+  padding: 6px 0 10px;
+}
+
+:deep(.el-menu--inline .el-menu-item) {
+  min-width: auto;
+  margin: 4px 10px;
+  border-radius: 8px;
+  color: #d7e2ee;
+}
+
+:deep(.el-menu--inline .el-menu-item:hover) {
+  background: #33475e !important;
+}
+
+:deep(.el-menu--inline .el-menu-item.is-active) {
+  background: #1f8fff !important;
+  color: #fff;
+}
+
+:deep(.el-menu--popup) {
+  background: #263445 !important;
+  border: 1px solid #3b4d63;
+}
+
+:deep(.el-menu--popup .el-menu-item) {
+  color: #d7e2ee;
+}
+
+:deep(.el-menu--popup .el-menu-item:hover) {
+  background: #33475e !important;
+}
+
+:deep(.el-menu--popup .el-menu-item.is-active) {
+  background: #1f8fff !important;
   color: #fff;
 }
 

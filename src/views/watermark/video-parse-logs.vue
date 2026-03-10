@@ -58,18 +58,19 @@
 
     <el-table v-loading="loading" :data="list" stripe>
       <el-table-column prop="id" label="ID" width="80" />
-      <el-table-column label="小程序" min-width="140">
+      <el-table-column label="小程序" min-width="150">
         <template #default="{ row }">
           {{ row.mini_program_name || '-' }}
         </template>
       </el-table-column>
-      <el-table-column prop="user_id" label="用户ID" width="90" />
-      <el-table-column label="原始内容" min-width="220" show-overflow-tooltip>
+      <el-table-column prop="mini_program_id" label="小程序ID" width="110" />
+      <el-table-column prop="user_id" label="用户ID" width="100" />
+      <el-table-column label="原始内容" min-width="240" show-overflow-tooltip>
         <template #default="{ row }">
           {{ row.request_content || '-' }}
         </template>
       </el-table-column>
-      <el-table-column label="解析链接" min-width="220" show-overflow-tooltip>
+      <el-table-column label="解析链接" min-width="240" show-overflow-tooltip>
         <template #default="{ row }">
           <el-link
             v-if="row.parsed_url"
@@ -83,6 +84,29 @@
           <span v-else>-</span>
         </template>
       </el-table-column>
+      <el-table-column label="第三方状态" width="120">
+        <template #default="{ row }">
+          <el-tag :type="statusTagType(row.third_party_status)">
+            {{ displayStatus(row.third_party_status) }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="第三方响应" min-width="180">
+        <template #default="{ row }">
+          <el-popover
+            v-if="hasPayload(row.third_party_payload)"
+            placement="top-start"
+            :width="520"
+            trigger="click"
+          >
+            <template #reference>
+              <el-button type="primary" link>查看响应</el-button>
+            </template>
+            <pre class="payload-block">{{ formatPayload(row.third_party_payload) }}</pre>
+          </el-popover>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
       <el-table-column label="免费次数" width="100">
         <template #default="{ row }">
           <el-tag :type="row.free_quota_used ? 'success' : 'info'">
@@ -90,7 +114,7 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="duration_ms" label="耗时(ms)" width="100" />
+      <el-table-column prop="duration_ms" label="耗时(ms)" width="110" />
       <el-table-column label="错误信息" min-width="180" show-overflow-tooltip>
         <template #default="{ row }">
           {{ row.error_message || '-' }}
@@ -141,6 +165,38 @@ const query = reactive({
 const formatDateTime = (value) => {
   if (!value) return '-'
   return dayjs(value).format('YYYY-MM-DD HH:mm:ss')
+}
+
+const hasPayload = (value) => {
+  if (value === null || value === undefined) return false
+  return String(value).trim() !== ''
+}
+
+// 后端返回的 payload 可能是 JSON 字符串，也可能是对象，这里统一格式化展示
+const formatPayload = (value) => {
+  if (!hasPayload(value)) return '-'
+  if (typeof value === 'object') {
+    return JSON.stringify(value, null, 2)
+  }
+  const text = String(value)
+  try {
+    return JSON.stringify(JSON.parse(text), null, 2)
+  } catch (error) {
+    return text
+  }
+}
+
+const displayStatus = (value) => {
+  if (value === null || value === undefined || value === '') return '-'
+  return String(value)
+}
+
+const statusTagType = (value) => {
+  const num = Number(value)
+  if (!Number.isFinite(num)) return 'info'
+  if (num >= 200 && num < 400) return 'success'
+  if (num >= 400) return 'danger'
+  return 'info'
 }
 
 const loadMiniProgramOptions = async () => {
@@ -217,6 +273,20 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.payload-block {
+  max-height: 360px;
+  overflow: auto;
+  margin: 0;
+  padding: 10px;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #dbeafe;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 .pagination {
