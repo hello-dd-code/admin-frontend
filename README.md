@@ -32,3 +32,20 @@ npm run build
 - 会员、保质期、去水印、系统设置接口联调
 - 会员管理的记录详情与批量操作
 - 系统设置中的操作日志查询
+
+## 自动构建与发布（GitHub Actions）
+
+已新增生产自动发布流程：
+- 工作流：`.github/workflows/deploy-prod.yml`
+- 远程发布脚本：`scripts/ops/deploy_static.sh`
+- 详细说明：`docs/deploy_ci.md`
+
+部署参数全部走 GitHub Secrets（不使用脚本默认值），并与 `wx_service` 对齐：
+- `PROD_HOST=115.159.198.14`
+- `PROD_PORT=22`
+- `PROD_USER=root`
+- `ADMIN_WEB_ROOT=/www/wwwroot/wx_service/web/admin-frontend/panel`
+
+密钥说明：
+- `~/.ssh/id_ed25519.pub` 是公钥（放服务器）
+- GitHub Secret `PROD_SSH_KEY` 需填写私钥 `~/.ssh/id_ed25519`

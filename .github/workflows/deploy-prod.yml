@@ -1,0 +1,105 @@
+name: deploy-admin-frontend-prod
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: admin-frontend-prod
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Package dist
+        run: |
+          set -e
+          tar -czf "/tmp/admin-frontend-${GITHUB_SHA}.tar.gz" -C dist .
+
+      - name: Validate required secrets
+        env:
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+          ADMIN_WEB_ROOT: ${{ secrets.ADMIN_WEB_ROOT }}
+          ADMIN_WEB_USER: ${{ secrets.ADMIN_WEB_USER }}
+          ADMIN_WEB_GROUP: ${{ secrets.ADMIN_WEB_GROUP }}
+          ADMIN_KEEP_BACKUPS: ${{ secrets.ADMIN_KEEP_BACKUPS }}
+        run: |
+          set -e
+          for key in PROD_SSH_KEY PROD_HOST PROD_PORT PROD_USER ADMIN_WEB_ROOT ADMIN_WEB_USER ADMIN_WEB_GROUP ADMIN_KEEP_BACKUPS; do
+            if [ -z "${!key}" ]; then
+              echo "Missing required secret: ${key}"
+              exit 1
+            fi
+          done
+
+      - name: Prepare SSH
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          HOST: ${{ secrets.PROD_HOST }}
+          PORT: ${{ secrets.PROD_PORT }}
+        run: |
+          set -e
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "$PORT" "$HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload build artifact to server
+        env:
+          HOST: ${{ secrets.PROD_HOST }}
+          PORT: ${{ secrets.PROD_PORT }}
+          USER: ${{ secrets.PROD_USER }}
+        run: |
+          set -e
+          SSH_OPTS="-o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=10 -o ServerAliveCountMax=6"
+          scp ${SSH_OPTS} -P "$PORT" \
+            "/tmp/admin-frontend-${GITHUB_SHA}.tar.gz" \
+            "${USER}@${HOST}:/tmp/admin-frontend-${GITHUB_SHA}.tar.gz"
+
+      - name: Deploy static files on server
+        env:
+          HOST: ${{ secrets.PROD_HOST }}
+          PORT: ${{ secrets.PROD_PORT }}
+          USER: ${{ secrets.PROD_USER }}
+          WEB_ROOT: ${{ secrets.ADMIN_WEB_ROOT }}
+          WEB_USER: ${{ secrets.ADMIN_WEB_USER }}
+          WEB_GROUP: ${{ secrets.ADMIN_WEB_GROUP }}
+          KEEP_BACKUPS: ${{ secrets.ADMIN_KEEP_BACKUPS }}
+          HEALTHCHECK_URL: ${{ secrets.ADMIN_HEALTHCHECK_URL }}
+        run: |
+          set -e
+          SSH_OPTS="-o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=10 -o ServerAliveCountMax=6"
+
+          ssh ${SSH_OPTS} -p "$PORT" "${USER}@${HOST}" \
+            "DEPLOY_TAR='/tmp/admin-frontend-${GITHUB_SHA}.tar.gz' \
+             TARGET_DIR='${WEB_ROOT}' \
+             RELEASE_ID='${GITHUB_SHA}' \
+             RUN_USER='${WEB_USER}' \
+             RUN_GROUP='${WEB_GROUP}' \
+             KEEP_BACKUPS='${KEEP_BACKUPS}' \
+             HEALTHCHECK_URL='${HEALTHCHECK_URL}' \
+             bash -s" < scripts/ops/deploy_static.sh

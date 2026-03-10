@@ -1,6 +1,8 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
+const loginPath = `${import.meta.env.BASE_URL}login`
+
 // 创建 axios 实例
 const request = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/',
@@ -33,7 +35,7 @@ request.interceptors.response.use(
       // 401: 未登录
       if (res.code === 401) {
         localStorage.removeItem('admin_token')
-        window.location.href = '/login'
+        window.location.href = loginPath
       }
 
       return Promise.reject(new Error(res.message || '请求失败'))
@@ -50,7 +52,7 @@ request.interceptors.response.use(
       if (status === 401) {
         ElMessage.error('登录已过期，请重新登录')
         localStorage.removeItem('admin_token')
-        window.location.href = '/login'
+        window.location.href = loginPath
       } else if (status === 403) {
         ElMessage.error('没有权限访问')
       } else if (status === 404) {
