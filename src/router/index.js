@@ -97,6 +97,12 @@ const routes = [
         ]
       },
       {
+        path: 'smoke',
+        name: 'Smoke',
+        component: () => import('../views/smoke/index.vue'),
+        meta: { title: '戒烟小程序', icon: 'Opportunity' }
+      },
+      {
         path: 'settings',
         name: 'Settings',
         component: () => import('../views/settings/index.vue'),
